@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>강의실 예약</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --text: #1d2330;
+    --muted: #6a7384;
+    --line: #dde1e8;
+    --accent: #2f5bd3;
+    --accent-text: #ffffff;
+    --ok: #13804b;
+    --ok-bg: #e3f6ec;
+    --fail: #c62828;
+    --fail-bg: #fde8e8;
+    --bar: #dbe5fb;
+    --bar-text: #1d3b8f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b;
+      --card: #1b1f27;
+      --text: #e6e9ef;
+      --muted: #98a1b2;
+      --line: #2e3440;
+      --accent: #6d8ff0;
+      --accent-text: #0e1220;
+      --ok: #4fd18b;
+      --ok-bg: #12301f;
+      --fail: #ff6b6b;
+      --fail-bg: #3a1618;
+      --bar: #263763;
+      --bar-text: #d5e0ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    line-height: 1.5;
+  }
+  main { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  h1 { font-size: 1.5rem; margin: 0; }
+  h2 { font-size: 1.1rem; margin: 0 0 12px; }
+  .status { font-size: .85rem; padding: 4px 10px; border-radius: 999px; background: var(--line); color: var(--muted); }
+  .status.ready { background: var(--ok-bg); color: var(--ok); }
+  .status.error { background: var(--fail-bg); color: var(--fail); }
+
+  .result {
+    border-radius: 12px; padding: 16px 20px; margin-bottom: 16px;
+    border: 2px solid var(--line); background: var(--card); color: var(--muted);
+  }
+  .result .big { font-size: 2.4rem; font-weight: 800; line-height: 1.1; }
+  .result .detail { margin-top: 4px; font-size: 1rem; }
+  .result.ok { border-color: var(--ok); background: var(--ok-bg); color: var(--ok); }
+  .result.fail { border-color: var(--fail); background: var(--fail-bg); color: var(--fail); }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+  .wide { grid-column: 1 / -1; }
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .fields .full { grid-column: 1 / -1; }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; color: var(--muted); }
+  input, select {
+    font: inherit; color: var(--text); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; width: 100%;
+  }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button {
+    font: inherit; font-weight: 600; cursor: pointer;
+    border: 0; border-radius: 8px; padding: 10px 16px;
+    background: var(--accent); color: var(--accent-text);
+  }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.secondary { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+  form button[type=submit] { margin-top: 12px; width: 100%; }
+  .hint { font-size: .8rem; color: var(--muted); margin: 8px 0 0; }
+
+  .sched-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 14px; }
+  .sched-head label { min-width: 120px; }
+  .timeline { position: relative; height: 44px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); overflow: hidden; }
+  .timeline .tick { position: absolute; top: 0; bottom: 0; border-left: 1px dashed var(--line); }
+  .timeline .bar {
+    position: absolute; top: 6px; bottom: 6px; border-radius: 6px;
+    background: var(--bar); color: var(--bar-text); border: 1px solid var(--accent);
+    font-size: .75rem; padding: 0 6px; display: flex; align-items: center;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  }
+  .hours { position: relative; height: 18px; font-size: .7rem; color: var(--muted); margin-top: 2px; }
+  .hours span { position: absolute; transform: translateX(-50%); }
+  .hours span:first-child { transform: none; }
+  .hours span:last-child { transform: translateX(-100%); }
+  table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+  th { font-size: .8rem; color: var(--muted); font-weight: 600; }
+  .empty { color: var(--muted); text-align: center; padding: 16px 0; }
+
+  .log { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow-y: auto; font-size: .9rem; }
+  .log li { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .tag { font-weight: 700; min-width: 2.5em; }
+  .tag.ok { color: var(--ok); }
+  .tag.fail { color: var(--fail); }
+  .footer-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+  @media (max-width: 640px) {
+    .grid { grid-template-columns: 1fr; }
+    .result .big { font-size: 2rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>강의실 예약</h1>
+    <span id="status" class="status" role="status">Python 불러오는 중…</span>
+  </header>
+
+  <section id="result" class="result" aria-live="assertive">
+    <div class="big">대기 중</div>
+    <div class="detail">예약 또는 취소를 하면 결과가 여기에 표시됩니다.</div>
+  </section>
+
+  <div class="grid">
+    <section class="card">
+      <h2>예약하기</h2>
+      <form id="book-form">
+        <div class="fields">
+          <label>강의실 <input name="room" list="rooms" value="A101" required></label>
+          <label>요일 <input name="day" list="days" value="월" required></label>
+          <label>시작 (시) <input name="start" inputmode="decimal" placeholder="예: 10" required></label>
+          <label>끝 (시) <input name="end" inputmode="decimal" placeholder="예: 12" required></label>
+          <label class="full">이름 <input name="name" placeholder="예: 김철수" required></label>
+        </div>
+        <button type="submit" disabled>예약</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>취소하기</h2>
+      <form id="cancel-form">
+        <div class="fields">
+          <label>강의실 <input name="room" list="rooms" value="A101" required></label>
+          <label>요일 <input name="day" list="days" value="월" required></label>
+          <label class="full">시작 시각 (시) <input name="start" inputmode="decimal" placeholder="예: 10" required></label>
+          <label class="full">예약한 사람 이름 <input name="name" placeholder="예: 김철수" required></label>
+        </div>
+        <button type="submit" disabled>취소</button>
+      </form>
+    </section>
+
+    <section class="card wide">
+      <h2>시간표</h2>
+      <div class="sched-head">
+        <label>강의실
+          <select id="sched-room"><option>A101</option><option>A102</option><option>B201</option></select>
+        </label>
+        <label>요일
+          <select id="sched-day"><option>월</option><option>화</option><option>수</option><option>목</option><option>금</option></select>
+        </label>
+      </div>
+      <div id="timeline" class="timeline" aria-hidden="true"></div>
+      <div id="hours" class="hours" aria-hidden="true"></div>
+      <table>
+        <thead><tr><th>시작</th><th>끝</th><th>이름</th></tr></thead>
+        <tbody id="sched-body"><tr><td colspan="3" class="empty">불러오는 중…</td></tr></tbody>
+      </table>
+    </section>
+
+    <section class="card wide">
+      <div class="footer-row">
+        <h2 style="margin:0">기록</h2>
+        <button id="reset" class="secondary" type="button" disabled>처음 상태로 초기화</button>
+      </div>
+      <p class="hint">예약 정보는 이 페이지가 열려 있는 동안 기억됩니다. 새로고침하거나 초기화하면 예약이 모두 사라집니다.</p>
+      <ul id="log" class="log"></ul>
+    </section>
+  </div>
+
+  <datalist id="rooms"><option value="A101"><option value="A102"><option value="B201"></datalist>
+  <datalist id="days"><option value="월"><option value="화"><option value="수"><option value="목"><option value="금"></datalist>
+</main>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<script>
+  // 예약 규칙은 모두 solution.py 에 있다. 이 페이지는 입력을 넘기고 결과를 보여주기만 한다.
+  const OPEN = 9, CLOSE = 21;
+  const $ = (id) => document.getElementById(id);
+  let api = null;
+
+  // 입력 문자열을 Python 값으로 바꾸는 것만 담당 (정수 → int, 소수 → float, 그 외 → 문자열 그대로)
+  const GLUE = `
+import json, re
+from solution import RoomBooking
+
+def _to_hour(v):
+    v = v.strip()
+    if re.fullmatch(r"[+-]?\\d+", v):
+        return int(v)
+    try:
+        return float(v)
+    except ValueError:
+        return v
+
+rb = RoomBooking()
+
+def ui_reset():
+    global rb
+    rb = RoomBooking()
+
+def ui_book(room, day, start, end, name):
+    return rb.book(room, day, _to_hour(start), _to_hour(end), name) is True
+
+def ui_cancel(room, day, start, name):
+    return rb.cancel(room, day, _to_hour(start), name) is True
+
+def ui_schedule(room, day):
+    return json.dumps([list(item) for item in (rb.get_schedule(room, day) or [])], ensure_ascii=False)
+`;
+
+  function showResult(ok, detail) {
+    const box = $("result");
+    box.className = "result " + (ok ? "ok" : "fail");
+    box.querySelector(".big").textContent = ok ? "성공" : "실패";
+    box.querySelector(".detail").textContent = detail;
+    const li = document.createElement("li");
+    const tag = document.createElement("span");
+    tag.className = "tag " + (ok ? "ok" : "fail");
+    tag.textContent = ok ? "성공" : "실패";
+    const text = document.createElement("span");
+    text.textContent = detail;
+    li.append(tag, text);
+    $("log").prepend(li);
+  }
+
+  function showError(detail) {
+    const box = $("result");
+    box.className = "result fail";
+    box.querySelector(".big").textContent = "오류";
+    box.querySelector(".detail").textContent = detail;
+  }
+
+  function renderHours() {
+    const hours = $("hours"), tl = $("timeline");
+    for (let h = OPEN; h <= CLOSE; h++) {
+      const pct = (h - OPEN) / (CLOSE - OPEN) * 100;
+      const s = document.createElement("span");
+      s.style.left = pct + "%";
+      s.textContent = h;
+      hours.append(s);
+      if (h > OPEN && h < CLOSE) {
+        const t = document.createElement("div");
+        t.className = "tick";
+        t.style.left = pct + "%";
+        tl.append(t);
+      }
+    }
+  }
+
+  function renderSchedule() {
+    if (!api) return;
+    const room = $("sched-room").value, day = $("sched-day").value;
+    const items = JSON.parse(api.schedule(room, day));
+    const body = $("sched-body"), tl = $("timeline");
+    tl.querySelectorAll(".bar").forEach((b) => b.remove());
+    body.replaceChildren();
+    if (items.length === 0) {
+      body.innerHTML = '<tr><td colspan="3" class="empty">예약이 없습니다.</td></tr>';
+      return;
+    }
+    for (const [start, end, name] of items) {
+      const tr = document.createElement("tr");
+      for (const v of [start + "시", end + "시", name]) {
+        const td = document.createElement("td");
+        td.textContent = v;
+        tr.append(td);
+      }
+      body.append(tr);
+
+      const bar = document.createElement("div");
+      bar.className = "bar";
+      bar.style.left = (start - OPEN) / (CLOSE - OPEN) * 100 + "%";
+      bar.style.width = (end - start) / (CLOSE - OPEN) * 100 + "%";
+      bar.textContent = `${start}~${end} ${name}`;
+      bar.title = bar.textContent;
+      tl.append(bar);
+    }
+  }
+
+  // 방금 다룬 강의실·요일이 시간표 선택지에 있으면 그쪽으로 시간표를 맞춘다.
+  function focusSchedule(room, day) {
+    const r = [...$("sched-room").options].some((o) => o.value === room);
+    const d = [...$("sched-day").options].some((o) => o.value === day);
+    if (r && d) {
+      $("sched-room").value = room;
+      $("sched-day").value = day;
+    }
+    renderSchedule();
+  }
+
+  function values(form) {
+    const data = new FormData(form);
+    return Object.fromEntries([...data].map(([k, v]) => [k, String(v).trim()]));
+  }
+
+  $("book-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const v = values(e.target);
+    const label = `${v.room} · ${v.day} · ${v.start}~${v.end}시 예약 — ${v.name}`;
+    try {
+      showResult(api.book(v.room, v.day, v.start, v.end, v.name), label);
+      focusSchedule(v.room, v.day);
+    } catch (err) {
+      showError(label + " 처리 중 오류: " + err.message);
+    }
+  });
+
+  $("cancel-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const v = values(e.target);
+    const label = `${v.room} · ${v.day} · ${v.start}시 예약 취소 — ${v.name}`;
+    try {
+      showResult(api.cancel(v.room, v.day, v.start, v.name), label);
+      focusSchedule(v.room, v.day);
+    } catch (err) {
+      showError(label + " 처리 중 오류: " + err.message);
+    }
+  });
+
+  $("sched-room").addEventListener("change", renderSchedule);
+  $("sched-day").addEventListener("change", renderSchedule);
+
+  $("reset").addEventListener("click", () => {
+    if (!confirm("모든 예약을 지우고 처음 상태로 돌아갈까요?")) return;
+    api.reset();
+    $("log").replaceChildren();
+    const box = $("result");
+    box.className = "result";
+    box.querySelector(".big").textContent = "초기화됨";
+    box.querySelector(".detail").textContent = "예약이 하나도 없는 처음 상태입니다.";
+    renderSchedule();
+  });
+
+  async function start() {
+    renderHours();
+    const status = $("status");
+    try {
+      const pyodide = await loadPyodide();
+      const res = await fetch("solution.py", { cache: "no-store" });
+      if (!res.ok) throw new Error("solution.py 를 불러오지 못했습니다 (" + res.status + ")");
+      pyodide.FS.writeFile("solution.py", await res.text());
+      pyodide.runPython(GLUE);
+      const g = pyodide.globals;
+      api = {
+        book: g.get("ui_book"),
+        cancel: g.get("ui_cancel"),
+        schedule: g.get("ui_schedule"),
+        reset: g.get("ui_reset"),
+      };
+      document.querySelectorAll("button").forEach((b) => (b.disabled = false));
+      status.textContent = "준비 완료";
+      status.classList.add("ready");
+      renderSchedule();
+    } catch (err) {
+      status.textContent = "불러오기 실패";
+      status.classList.add("error");
+      showError("Python 실행 환경을 불러오지 못했습니다. 새로고침해 보세요. (" + err.message + ")");
+      $("sched-body").innerHTML = '<tr><td colspan="3" class="empty">사용할 수 없습니다.</td></tr>';
+    }
+  }
+  start();
+</script>
+</body>
+</html>
