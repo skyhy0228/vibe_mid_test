@@ -9,12 +9,17 @@ MAX_PER_PERSON_PER_DAY = 2
 
 
 def _is_int(value):
-    # bool은 int의 하위 클래스이므로 따로 제외
-    return isinstance(value, int) and not isinstance(value, bool)
+    # bool·IntEnum 같은 int 하위 타입은 정수로 보지 않음
+    return type(value) is int
 
 
 def _is_valid_place(room, day):
     return isinstance(room, str) and isinstance(day, str) and room in ROOMS and day in DAYS
+
+
+def _is_valid_name(name):
+    # None·빈 문자열·공백만·제어문자/제로폭 문자가 섞인 이름은 거절
+    return isinstance(name, str) and name.strip() != "" and name.isprintable()
 
 
 class RoomBooking:
@@ -23,7 +28,7 @@ class RoomBooking:
         self._bookings = {}
 
     def book(self, room, day, start, end, name):
-        if not _is_valid_place(room, day):
+        if not _is_valid_place(room, day) or not _is_valid_name(name):
             return False
         if not _is_int(start) or not _is_int(end):
             return False
@@ -54,7 +59,7 @@ class RoomBooking:
         return True
 
     def cancel(self, room, day, start, name):
-        if not _is_valid_place(room, day) or not _is_int(start):
+        if not _is_valid_place(room, day) or not _is_int(start) or not _is_valid_name(name):
             return False
         slots = self._bookings.get((room, day), [])
         for i, (s, _, n) in enumerate(slots):

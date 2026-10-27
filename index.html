@@ -85,14 +85,18 @@
 
   .sched-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 14px; }
   .sched-head label { min-width: 120px; }
-  .timeline { position: relative; height: 44px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); overflow: hidden; }
-  .timeline .tick { position: absolute; top: 0; bottom: 0; border-left: 1px dashed var(--line); }
-  .timeline .bar {
-    position: absolute; top: 6px; bottom: 6px; border-radius: 6px;
-    background: var(--bar); color: var(--bar-text); border: 1px solid var(--accent);
-    font-size: .75rem; padding: 0 6px; display: flex; align-items: center;
-    overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  .timeline { min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); overflow: hidden; }
+  /* 예약 하나당 한 줄. 12칸(9~21시) 격자에 막대를 놓고, 이름은 막대 옆 넓은 쪽에 표시 */
+  .lane {
+    display: grid; grid-template-columns: repeat(12, 1fr); align-items: center;
+    min-height: 42px; padding: 6px 0;
+    background-image: linear-gradient(to right, var(--line) 1px, transparent 1px);
+    background-size: calc(100% / 12) 100%;
   }
+  .lane + .lane { border-top: 1px solid var(--line); }
+  .lane .bar { grid-row: 1; height: 28px; border-radius: 6px; background: var(--bar); border: 1px solid var(--accent); }
+  .lane .label { grid-row: 1; padding: 0 8px; font-size: .8rem; color: var(--bar-text); overflow-wrap: anywhere; }
+  .lane .label.left { justify-self: end; text-align: right; }
   .hours { position: relative; height: 18px; font-size: .7rem; color: var(--muted); margin-top: 2px; }
   .hours span { position: absolute; transform: translateX(-50%); }
   .hours span:first-child { transform: none; }
@@ -132,11 +136,11 @@
       <h2>예약하기</h2>
       <form id="book-form">
         <div class="fields">
-          <label>강의실 <input name="room" list="rooms" value="A101" required></label>
-          <label>요일 <input name="day" list="days" value="월" required></label>
-          <label>시작 (시) <input name="start" inputmode="decimal" placeholder="예: 10" required></label>
-          <label>끝 (시) <input name="end" inputmode="decimal" placeholder="예: 12" required></label>
-          <label class="full">이름 <input name="name" placeholder="예: 김철수" required></label>
+          <label>강의실 <input name="room" list="rooms" value="A101"></label>
+          <label>요일 <input name="day" list="days" value="월"></label>
+          <label>시작 (시) <input name="start" inputmode="decimal" placeholder="예: 10"></label>
+          <label>끝 (시) <input name="end" inputmode="decimal" placeholder="예: 12"></label>
+          <label class="full">이름 <input name="name" placeholder="예: 김철수"></label>
         </div>
         <button type="submit" disabled>예약</button>
       </form>
@@ -146,10 +150,10 @@
       <h2>취소하기</h2>
       <form id="cancel-form">
         <div class="fields">
-          <label>강의실 <input name="room" list="rooms" value="A101" required></label>
-          <label>요일 <input name="day" list="days" value="월" required></label>
-          <label class="full">시작 시각 (시) <input name="start" inputmode="decimal" placeholder="예: 10" required></label>
-          <label class="full">예약한 사람 이름 <input name="name" placeholder="예: 김철수" required></label>
+          <label>강의실 <input name="room" list="rooms" value="A101"></label>
+          <label>요일 <input name="day" list="days" value="월"></label>
+          <label class="full">시작 시각 (시) <input name="start" inputmode="decimal" placeholder="예: 10"></label>
+          <label class="full">예약한 사람 이름 <input name="name" placeholder="예: 김철수"></label>
         </div>
         <button type="submit" disabled>취소</button>
       </form>
@@ -200,8 +204,7 @@ import json, re
 from solution import RoomBooking
 
 def _to_hour(v):
-    v = v.strip()
-    if re.fullmatch(r"[+-]?\\d+", v):
+    if re.fullmatch(r"-?[0-9]+", v):
         return int(v)
     try:
         return float(v)
@@ -247,20 +250,19 @@ def ui_schedule(room, day):
   }
 
   function renderHours() {
-    const hours = $("hours"), tl = $("timeline");
+    const hours = $("hours");
     for (let h = OPEN; h <= CLOSE; h++) {
-      const pct = (h - OPEN) / (CLOSE - OPEN) * 100;
       const s = document.createElement("span");
-      s.style.left = pct + "%";
+      s.style.left = (h - OPEN) / (CLOSE - OPEN) * 100 + "%";
       s.textContent = h;
       hours.append(s);
-      if (h > OPEN && h < CLOSE) {
-        const t = document.createElement("div");
-        t.className = "tick";
-        t.style.left = pct + "%";
-        tl.append(t);
-      }
     }
+  }
+
+  function lane() {
+    const row = document.createElement("div");
+    row.className = "lane";
+    return row;
   }
 
   function renderSchedule() {
@@ -268,9 +270,10 @@ def ui_schedule(room, day):
     const room = $("sched-room").value, day = $("sched-day").value;
     const items = JSON.parse(api.schedule(room, day));
     const body = $("sched-body"), tl = $("timeline");
-    tl.querySelectorAll(".bar").forEach((b) => b.remove());
+    tl.replaceChildren();
     body.replaceChildren();
     if (items.length === 0) {
+      tl.append(lane());
       body.innerHTML = '<tr><td colspan="3" class="empty">예약이 없습니다.</td></tr>';
       return;
     }
@@ -283,13 +286,22 @@ def ui_schedule(room, day):
       }
       body.append(tr);
 
+      const row = lane();
+      const first = start - OPEN + 1, last = end - OPEN + 1;  // 격자 열 번호 (1~13)
       const bar = document.createElement("div");
       bar.className = "bar";
-      bar.style.left = (start - OPEN) / (CLOSE - OPEN) * 100 + "%";
-      bar.style.width = (end - start) / (CLOSE - OPEN) * 100 + "%";
-      bar.textContent = `${start}~${end} ${name}`;
-      bar.title = bar.textContent;
-      tl.append(bar);
+      bar.style.gridColumn = `${first} / ${last}`;
+      const label = document.createElement("span");
+      label.textContent = `${start}~${end}시 ${name}`;
+      if (first - 1 >= CLOSE - end) {
+        label.className = "label left";
+        label.style.gridColumn = `1 / ${first}`;
+      } else {
+        label.className = "label";
+        label.style.gridColumn = `${last} / 13`;
+      }
+      row.append(bar, label);
+      tl.append(row);
     }
   }
 
@@ -306,7 +318,7 @@ def ui_schedule(room, day):
 
   function values(form) {
     const data = new FormData(form);
-    return Object.fromEntries([...data].map(([k, v]) => [k, String(v).trim()]));
+    return Object.fromEntries([...data].map(([k, v]) => [k, String(v)]));
   }
 
   $("book-form").addEventListener("submit", (e) => {
